@@ -1,0 +1,18 @@
+[package]
+name = "rhai-tpl"
+version = "0.1.0"
+edition = "2021"
+description = "Simple template engine using rhai for logic"
+license = "MIT"
+
+[dependencies]
+enquote = "1.1.0"
+logos = "0.13.0"
+parking_lot = "0.12.1"
+rhai = { version = "1.15.1", features = ["sync"] }
+thiserror = "1.0.44"
+tracing = "0.1.37"
+
+[dev-dependencies]
+tempfile = "3.7.0"
+tracing-subscriber = "0.3.17"
