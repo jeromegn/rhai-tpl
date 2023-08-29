@@ -37,12 +37,15 @@ enum Closing {
     Match,
 }
 
+/// Bundled for acceptable template writers
 pub trait Writer: Write + Send + Sync + 'static {}
 impl<T> Writer for T where T: Write + Send + Sync + 'static {}
 
+/// Bundled for acceptable template states
 pub trait State: Clone + Send + Sync + 'static {}
 impl<T> State for T where T: Clone + Send + Sync + 'static {}
 
+/// Used for keeping state and writing the template to the provided writer
 pub struct TemplateWriter<W: Write, S> {
     writer: Arc<RwLock<W>>,
     pub state: S,
@@ -90,6 +93,7 @@ impl<W, S> TemplateWriter<W, S>
 where
     W: Write,
 {
+    /// Creates a new TemplateWriter with the given state
     pub fn new(w: W, state: S) -> Self {
         Self {
             writer: Arc::new(RwLock::new(w)),
@@ -121,6 +125,7 @@ where
     }
 }
 
+/// Template engine, manages [`rhai::Engine`]
 pub struct Engine {
     engine: rhai::Engine,
 }
@@ -140,6 +145,7 @@ impl DerefMut for Engine {
 }
 
 impl Engine {
+    /// Creates a new `Engine`
     pub fn new<W: Writer, S: State>() -> Self {
         let mut engine = rhai::Engine::new();
 
@@ -151,6 +157,7 @@ impl Engine {
         Self { engine }
     }
 
+    /// Compiles a template from a string representation
     pub fn compile(&self, input: &str) -> Result<Template, CompileError> {
         let mut lex = Tag::lexer(input);
 
@@ -226,12 +233,14 @@ fn rhai_enquote(program: &mut String, text: &str, strip_newline: bool) {
     }
 }
 
+/// Reusable compiled template
 pub struct Template<'a> {
     ast: rhai::AST,
     engine: &'a Engine,
 }
 
 impl<'a> Template<'a> {
+    /// Render teh template w/ the provided writer and state
     pub fn render<W: Writer, S: State>(
         &self,
         w: W,
