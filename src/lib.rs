@@ -20,7 +20,7 @@ pub struct ParseError;
     skip r"[^<]+",
     error = ParseError,
 )]
-pub enum Tag {
+enum Tag {
     /// `<% control %>` tag
     #[token("<%")]
     Control,
@@ -71,6 +71,18 @@ where
 
     fn flush(&mut self) -> std::io::Result<()> {
         self.writer.write().flush()
+    }
+
+    fn write_vectored(&mut self, bufs: &[std::io::IoSlice<'_>]) -> std::io::Result<usize> {
+        self.writer.write().write_vectored(bufs)
+    }
+
+    fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
+        self.writer.write().write_all(buf)
+    }
+
+    fn write_fmt(&mut self, fmt: std::fmt::Arguments<'_>) -> std::io::Result<()> {
+        self.writer.write().write_fmt(fmt)
     }
 }
 
