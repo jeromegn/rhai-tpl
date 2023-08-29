@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "Simple template engine using rhai for logic"
 license = "MIT"
+keywords = ["template", "rhai"]
+categories = ["template-engine"]
+readme = "README.md"
+repository = "https://github.com/jeromegn/rhai-tpl"
 
 [dependencies]
 enquote = "1.1.0"
