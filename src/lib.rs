@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::io::Write;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -101,27 +102,24 @@ where
         }
     }
 
-    fn write_str(&mut self, data: &str) -> Result<(), Box<EvalAltResult>> {
+    pub fn write_str(&mut self, data: &str) -> Result<(), Box<EvalAltResult>> {
         if data.is_empty() {
             return Ok(());
         }
-        Ok(self
-            .write_all(data.as_bytes())
-            .map_err(|e| Box::new(EvalAltResult::from(e.to_string())))?)
+        self.write_all(data.as_bytes())
+            .map_err(|e| Box::new(EvalAltResult::from(e.to_string())))
     }
 
-    fn write_char(&mut self, data: char) -> Result<(), Box<EvalAltResult>> {
+    pub fn write_char(&mut self, data: char) -> Result<(), Box<EvalAltResult>> {
         let mut b = [0; 2];
         let len = data.encode_utf8(&mut b).len();
-        Ok(self
-            .write_all(&b[0..len])
-            .map_err(|e| Box::new(EvalAltResult::from(e.to_string())))?)
+        self.write_all(&b[0..len])
+            .map_err(|e| Box::new(EvalAltResult::from(e.to_string())))
     }
 
-    fn write_dynamic(&mut self, d: Dynamic) -> Result<(), Box<EvalAltResult>> {
-        Ok(self
-            .write_all(d.to_string().as_bytes())
-            .map_err(|e| Box::new(EvalAltResult::from(e.to_string())))?)
+    pub fn write_dynamic(&mut self, d: Dynamic) -> Result<(), Box<EvalAltResult>> {
+        self.write_all(d.to_string().as_bytes())
+            .map_err(|e| Box::new(EvalAltResult::from(e.to_string())))
     }
 }
 
@@ -158,7 +156,24 @@ impl Engine {
     }
 
     /// Compiles a template from a string representation
-    pub fn compile(&self, input: &str) -> Result<Template, CompileError> {
+    pub fn compile(&self, input: &str) -> Result<Template<&rhai::Engine>, CompileError> {
+        Ok(Template {
+            ast: self._compile(input)?,
+            evaluator: &self.engine,
+        })
+    }
+
+    pub fn compile_mut(
+        &mut self,
+        input: &str,
+    ) -> Result<Template<&mut rhai::Engine>, CompileError> {
+        Ok(Template {
+            ast: self._compile(input)?,
+            evaluator: &mut self.engine,
+        })
+    }
+
+    pub fn _compile(&self, input: &str) -> Result<rhai::AST, CompileError> {
         let mut lex = Tag::lexer(input);
 
         let mut program: String = String::new();
@@ -209,10 +224,7 @@ impl Engine {
 
         trace!("program: {program}");
 
-        Ok(Template {
-            ast: self.engine.compile(program)?,
-            engine: &self,
-        })
+        Ok(self.engine.compile(program)?)
     }
 }
 
@@ -234,12 +246,15 @@ fn rhai_enquote(program: &mut String, text: &str, strip_newline: bool) {
 }
 
 /// Reusable compiled template
-pub struct Template<'a> {
+pub struct Template<E> {
     ast: rhai::AST,
-    engine: &'a Engine,
+    evaluator: E,
 }
 
-impl<'a> Template<'a> {
+impl<E> Template<E>
+where
+    E: TemplateEvaluator,
+{
     /// Render teh template w/ the provided writer and state
     pub fn render<W: Writer, S: State>(
         &self,
@@ -250,14 +265,48 @@ impl<'a> Template<'a> {
         let mut w = TemplateWriter::new(w, state);
         scope.push("__tpl_writer", w.clone());
 
-        self.engine
-            .engine
-            .eval_ast_with_scope(&mut scope, &self.ast)?;
+        self.evaluator.eval(&mut scope, &self.ast)?;
 
         w.flush()
             .map_err(|e| Box::new(EvalAltResult::from(e.to_string())))?;
 
         Ok(w)
+    }
+
+    pub fn evaluator(&self) -> &E {
+        &self.evaluator
+    }
+
+    pub fn evaluator_mut(&mut self) -> &mut E {
+        &mut self.evaluator
+    }
+}
+
+pub trait TemplateEvaluator {
+    fn eval<T: Any + Clone + Send + Sync>(
+        &self,
+        scope: &mut Scope,
+        ast: &rhai::AST,
+    ) -> Result<T, Box<EvalAltResult>>;
+}
+
+impl<'a> TemplateEvaluator for &'a rhai::Engine {
+    fn eval<T: Any + Clone + Send + Sync>(
+        &self,
+        scope: &mut Scope,
+        ast: &rhai::AST,
+    ) -> Result<T, Box<EvalAltResult>> {
+        self.eval_ast_with_scope(scope, ast)
+    }
+}
+
+impl<'a> TemplateEvaluator for &'a mut rhai::Engine {
+    fn eval<T: Any + Clone + Send + Sync>(
+        &self,
+        scope: &mut Scope,
+        ast: &rhai::AST,
+    ) -> Result<T, Box<EvalAltResult>> {
+        self.eval_ast_with_scope(scope, ast)
     }
 }
 
